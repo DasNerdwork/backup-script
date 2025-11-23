@@ -103,11 +103,11 @@ fi
 # -------------------------
 if [ "$DO_MONGO" -eq 1 ]; then
     echo "[$DATE $TIME] MongoDB-Dump..." >> "$LOGFILE"
-    MDB_HOST="${MDB_HOST:-127.0.0.1:17171}"
-    MDB_USER="${MDB_USER:-clashapp}"
-    MDB_PW="${MDB_PW:-NA}"
-    MDB_DB="${MDB_DB:-clashappdb}"
-    MDB_PATH="${MDB_PATH:-/etc/ssl/mongo/mongodb-ca.crt}"
+    MDB_HOST="${MDB_HOST}"
+    MDB_USER="${MDB_USER}"
+    MDB_PW="${MDB_PW}"
+    MDB_DB="${MDB_DB}"
+    MDB_PATH="${MDB_PATH}"
 
     if [ "$DRY_RUN" -eq 0 ]; then
         mongodump \
