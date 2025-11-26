@@ -248,9 +248,9 @@ if [ "$DRY_RUN" -eq 0 ]; then
         SIZE_DIFF=$((TODAY_SIZE_RAW - YESTERDAY_SIZE_RAW))
 
         if [ "$SIZE_DIFF" -gt 0 ]; then
-            SIZE_DIFF_FMT="+$(numfmt --to=iec $SIZE_DIFF)"
+            SIZE_DIFF_FMT="+$(numfmt --to=iec -- $SIZE_DIFF)"
         else
-            SIZE_DIFF_FMT="$(numfmt --to=iec $SIZE_DIFF)"
+            SIZE_DIFF_FMT="$(numfmt --to=iec -- $SIZE_DIFF)"
         fi
         log "Backup size: $TODAY_SIZE ($SIZE_DIFF_FMT compared to yesterday)"
     else
