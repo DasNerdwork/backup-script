@@ -1,4 +1,5 @@
 #!/bin/bash
+cd / || exit 1 # Change to working directory
 # ----------------------------------------
 # Backup script with database dumps and rsync
 # ----------------------------------------
