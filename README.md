@@ -1,102 +1,59 @@
 # Backup Script
 
-This Bash script creates incremental backups of selected directories and databases (MariaDB, PostgreSQL, MongoDB) on the system. It also supports optional flags to selectively back up specific components or perform a dry-run.
+Tägliches Backup des Servers nach `/hdd2/backups/JJJJ-MM-TT/`: Datenbank-Dumps (MariaDB, PostgreSQL, MongoDB,
+Postgres in Docker-Containern) und ein rsync-Snapshot der wichtigen Ordner. Jeder Tagesordner sieht aus wie eine
+Vollkopie; unveränderte Dateien sind Hardlinks auf den Vortag (`--link-dest`), es werden also nur Änderungen
+kopiert. Aufbewahrung 180 Tage.
 
-## Features
+**Wiederherstellen, Notfälle, was gesichert ist und was nicht: [WIEDERHERSTELLEN.md](WIEDERHERSTELLEN.md).**
 
-- Full or selective backups of MariaDB, PostgreSQL, and MongoDB.
-- Rsync backups of selected directories with exclusions for cache, temporary, or large files.
-- Daily backups are stored under `/hdd2/backups/YYYY-MM-DD/`
-- The directory `latest` points to the most recent backup to enable efficient incremental backups with Rsync.
-- Automatic backup retention: backups older than `RETENTION_DAYS` (default 180 days) are automatically deleted.
-- Automatic log rotation: `/var/log/backup.log` is rotated when it exceeds `MAX_LOG_SIZE` (default 10 MiB).
+## Dateien
 
-## Installation
+| Datei | Zweck |
+|---|---|
+| `backup.sh` | das Backup (Cron täglich 4:00) |
+| `backup-suche` | alle Versionen einer Datei finden, verlinkt nach `/usr/local/bin/backup-suche` |
+| `WIEDERHERSTELLEN.md` | Anleitung, wird bei jedem Lauf auch nach `/hdd2/backups/` kopiert |
+| `.env` | `HA_WEBHOOK=<id>` für den Push über Home Assistant (nicht im Repo) |
 
-1. Copy the script to the server, e.g., to `/usr/local/bin/backup.sh`
-2. Make it executable:
-
-```bash
-chmod +x /usr/local/bin/backup.sh
-```
-
-3. Optional: create a cronjob for automatic scheduled backups, e.g.:
+## Einrichtung
 
 ```bash
-0 4 * * * /usr/local/bin/backup.sh >/dev/null
-```
-> We use `>/dev/null` to mute the output because we already have logging, but not `2>&1` to keep errors in the cronlog
-
-## Usage
-
-```bash
-bash path/to/file/backup.sh [FLAGS]
+ln -s /root/scripts/backup-suche /usr/local/bin/backup-suche
+crontab -e
+# 0 4 * * * /root/scripts/backup.sh >> /var/log/backup.log 2>&1
 ```
 
-### Available Flags
+MongoDB-Zugang kommt aus `/etc/environment` (`MDB_HOST`, `MDB_USER`, `MDB_PW`, `MDB_DB`).
 
-| Flag | Description |
-|------|-------------|
-| `--only-mariadb | Only perform MariaDB dump |
-| `--only-psql | Only perform PostgreSQL dump |
-| `--only-mongo | Only perform MongoDB dump |
-| `--databases | Dump all databases, no Rsync |
-| `--dry-run | Simulate only, no actual backups created; logs actions |
+Push: In Home Assistant eine Automation mit Webhook-Auslöser (`local_only`, POST) anlegen, die
+`notify.mobile_app_<handy>` mit `{{ trigger.json.title }}` und `{{ trigger.json.message }}` aufruft. Die
+Webhook-ID kommt als `HA_WEBHOOK=...` in `/root/scripts/.env`.
 
-> If no flags are specified, all databases and Rsync backups are executed by default.
+## Flags
 
-## Backup Targets
+| Flag | Wirkung |
+|---|---|
+| (keins) | alle Dumps und rsync |
+| `--databases` | alle Dumps, kein rsync |
+| `--only-mariadb`, `--only-psql`, `--only-mongo`, `--only-docker` | nur dieser Dump |
+| `--dry-run` | nichts schreiben, nur loggen |
+| `--test-alarm` | nur Mail und Push testen |
 
-- Default location: `/hdd2/backups/`
-- Daily backups are stored under `/hdd2/backups/YYYY-MM-DD/`
-- `latest` always points to the most recent backup, so Rsync can perform incremental backups efficiently.
+## Verhalten
 
-## Exclusions
-
-During Rsync, certain files and directories are automatically excluded, e.g.:
-
-- Cache directories (.cache, .pub-cache, .dartServer)
-- Temporary files (*.swp, *.tmp)
-- Node modules (node_modules)
-- Git repositories (.git)
-- Game-specific caches (steam_cache, garrysmod/cache, satisfactory/Engine/Binaries/Linux/*.debug)
-- Large binaries and archives (*.gma, *.vpk, *.uacs)
-
-> These exclusions can be modified in the EXCLUDES array inside the script.
-
-## Logging
-
-- All actions are logged to `/var/log/backup.log`
-- Dry-runs are also logged, without creating actual backups
-- Logs exceeding `MAX_LOG_SIZE` (default 10 MiB) are automatically rotated
-- Old rotated logs older than `RETENTION_DAYS` (default 180 days) are automatically deleted
-
-## Notes
-
-- MongoDB dumps use the following environment variables by default:
-`MDB_HOST`, `MDB_USER`, `MDB_PW`, `MDB_DB`, `MDB_PATH`
-
-- Backup retention is based on directory modification time (mtime). Only directories older than `RETENTION_DAYS` are deleted.
-
-## Examples
-
-Backup all databases without Rsync:
-
-```bash
-./backup.sh --databases
-```
-
-Only MariaDB backup:
-
-```bash
-./backup.sh --only-mariadb
-```
-
-Dry-run test without creating backups:
-
-```bash
-./backup.sh --dry-run
-```
+- Ein Fehler in einem Schritt bricht die anderen nicht ab. Alle Fehler werden gesammelt und am Ende per Mail und
+  Push gemeldet, ebenso ein vorzeitiger Abbruch des Skripts. Ohne Fehler kommt keine Nachricht.
+- Nur ein Lauf gleichzeitig (`flock` auf `/run/backup.lock`). Hängt ein Lauf über 20 Stunden, meldet der nächste das.
+- Ist `/hdd2` nicht gemountet, wird nichts geschrieben (sonst liefe die Systemplatte voll).
+- Ein Tag gilt erst als vollständig (`.vollstaendig`, `latest` wird umgehängt), wenn rsync durchlief und die
+  Gegenprobe (ausgewählte Dateien Byte für Byte) stimmt. Nur dann werden alte Tage gelöscht, nach Ordnername,
+  und der neueste vollständige Stand bleibt immer.
+- Das Skript steht komplett in `{ ... }`: Bash liest es vor dem Start ein, Änderungen stören einen laufenden Lauf nicht.
+- Rechte: `/hdd2` gehört root mit 755, `db/` je Tag hat 700 (Dumps enthalten alle Datenbanken im Klartext). Im
+  Snapshot behalten Dateien Besitzer, Rechte und Zugriffslisten des Originals (rsync `-aHA`).
+- Je Tag entsteht `system/` mit Paketliste, Platten samt UUIDs, Containern und aktivierten Diensten: der Bauplan
+  für den Neuaufbau, falls die Systemplatte ausfällt.
 
 #### License
 

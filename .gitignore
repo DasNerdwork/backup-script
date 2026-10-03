@@ -1,0 +1,4 @@
+.env
+.vollauf.out
+.ha-automations.yaml.bak-*
+.crontab.bak-*

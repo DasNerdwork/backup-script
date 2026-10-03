@@ -1,0 +1,60 @@
+#!/bin/bash
+# Findet alle gesicherten Versionen einer Datei oder eines Ordners in /hdd2/backups.
+#   backup-suche /etc/nginx/sites-available/035-meet   -> Versionen mit Datum (nur echte Änderungen)
+#   backup-suche -n '035-meet*'                        -> Pfade im neuesten Snapshot suchen (Name, Muster)
+# Unveränderte Dateien sind in den Tagesordnern Hardlinks (gleiche Inode). Eine neue Inode heißt:
+# an diesem Tag geändert.
+
+BACKUP_ROOT="${BACKUP_ROOT:-/hdd2/backups}"
+SNAPS=$(ls -d "$BACKUP_ROOT"/20[0-9][0-9]-[0-9][0-9]-[0-9][0-9] 2>/dev/null | sort)
+[ -n "$SNAPS" ] || { echo "Keine Snapshots in $BACKUP_ROOT"; exit 1; }
+
+if [ "$1" = "-n" ] && [ -n "$2" ]; then
+    LATEST=$(readlink -f "$BACKUP_ROOT/latest")
+    echo "Suche '$2' in $LATEST (dauert etwas) ..."
+    find "$LATEST" -name "$2" -not -path '*/.git/*' 2>/dev/null | sed "s|^$LATEST||"
+    exit 0
+fi
+if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0
+fi
+
+P="$1"; [[ "$P" = /* ]] || P="$PWD/$P"
+P=$(realpath -m "$P")
+
+if [ -d "$(echo "$SNAPS" | tail -1)$P" ] || { [ -d "$P" ] && [ ! -L "$P" ]; }; then
+    # Ordner: Inhalt je Tag zusammenfassen (Anzahl Dateien + neueste Änderung)
+    printf '%-12s %8s  %s\n' "Snapshot" "Dateien" "Neueste Änderung darin"
+    letzte=""
+    for s in $SNAPS; do
+        [ -d "$s$P" ] || continue
+        zeile=$(find "$s$P" -type f -printf '%T@ %i\n' 2>/dev/null | sort -n | awk 'END{print NR, $1}')
+        sig=$(find "$s$P" -type f -printf '%i\n' 2>/dev/null | sort | md5sum)
+        [ "$sig" = "$letzte" ] && continue
+        letzte="$sig"
+        set -- $zeile
+        printf '%-12s %8s  %s\n' "$(basename "$s")" "$1" "$(date -d "@${2%.*}" '+%F %H:%M' 2>/dev/null)"
+    done
+    echo
+    echo "Gezeigt: nur Tage, an denen sich im Ordner etwas geändert hat."
+    echo "Vergleichen:    diff -r $BACKUP_ROOT/<datum>$P $P"
+    echo "Zurückholen:    rsync -a $BACKUP_ROOT/<datum>$P/ $P/"
+    exit 0
+fi
+
+printf '%-12s %10s  %s\n' "Snapshot" "Größe" "Geändert am"
+letzte=""; gefunden=0
+for s in $SNAPS; do
+    f="$s$P"
+    [ -e "$f" ] || [ -L "$f" ] || { [ -n "$letzte" ] && echo "$(basename "$s")   (ab hier nicht mehr vorhanden)"; letzte=""; continue; }
+    ino=$(stat -c %i "$f")
+    [ "$ino" = "$letzte" ] && continue
+    letzte="$ino"; gefunden=1
+    printf '%-12s %10s  %s\n' "$(basename "$s")" "$(stat -c %s "$f")" "$(date -d "@$(stat -c %Y "$f")" '+%F %H:%M')"
+done
+[ "$gefunden" -eq 1 ] || { echo "Nicht gefunden: $P (Tipp: backup-suche -n '$(basename "$P")')"; exit 1; }
+echo
+echo "Gezeigt: nur Tage, an denen sich die Datei geändert hat."
+echo "Ansehen:        less $BACKUP_ROOT/<datum>$P"
+echo "Vergleichen:    diff $BACKUP_ROOT/<datum>$P $P"
+echo "Zurückholen:    cp -a $BACKUP_ROOT/<datum>$P $P"
