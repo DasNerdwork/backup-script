@@ -56,7 +56,7 @@ keinen Platz. Einen Tagesordner zu löschen schadet den anderen nicht.
 `/usr/local/bin`, `/var/spool/cron` (Crontabs), `/var/vmail`, Docker-Volumes `okapeo-prototyp_s3-data`,
 `okapeo-prototyp_postgres-data`, `okapeo-prototyp_minio-data`, `n8n_data`, `matter-data`, `backend_postgres_data`.
 Datenbank-Dumps unter `db/`: MariaDB, Postgres (Host), MongoDB, Docker-Postgres `okapeo-prototyp-postgres-1`
-(app.okapeo.com) und `strapi-db`. Besitzer, Rechte und Zugriffslisten (ACLs, ab dem Lauf vom 04.10.2026) bleiben erhalten.
+(app.okapeo.com) und `strapi-db`. Besitzer, Rechte und Zugriffslisten (ACLs) bleiben erhalten.
 
 **Nicht gesichert:** Caches und Build-Ergebnisse (`node_modules`, `.pnpm-store`, `.next`, `.turbo`, `.npm`,
 `.cache`, `__pycache__`, PHP-`vendor`), `.git` außerhalb von `/hdd1/okapeo`, `.vscode-server`, `/root/.bun`,
@@ -238,7 +238,7 @@ Verloren: Änderungen seit 4:00. Gepushter Code liegt zusätzlich auf GitHub. Da
    tail -f /root/restore-hdd1.log
    ```
 
-4. Zugriffsrechte der gemeinsamen Ordner prüfen. Snapshots vor dem 04.10.2026 enthalten keine ACLs, dann:
+4. Zugriffsrechte der gemeinsamen Ordner prüfen (`getfacl /hdd1/okapeo`). Fehlt dort die Gruppe `okapeo`:
    `setfacl -R -m g:okapeo:rwX,d:g:okapeo:rwX /hdd1/okapeo`.
 5. Was nicht im Backup ist, neu erzeugen: in jedem Projekt `pnpm install` bzw. `npm ci`. Repos außerhalb von
    `/hdd1/okapeo` haben kein `.git`, die werden frisch von GitHub geklont und der gesicherte Arbeitsstand

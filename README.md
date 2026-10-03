@@ -50,6 +50,10 @@ Webhook-ID kommt als `HA_WEBHOOK=...` in `/root/scripts/.env`.
   Gegenprobe (ausgewählte Dateien Byte für Byte) stimmt. Nur dann werden alte Tage gelöscht, nach Ordnername,
   und der neueste vollständige Stand bleibt immer.
 - Das Skript steht komplett in `{ ... }`: Bash liest es vor dem Start ein, Änderungen stören einen laufenden Lauf nicht.
+- Rechte: `/hdd2` gehört root mit 755, `db/` je Tag hat 700 (Dumps enthalten alle Datenbanken im Klartext). Im
+  Snapshot behalten Dateien Besitzer, Rechte und Zugriffslisten des Originals (rsync `-aHA`).
+- Je Tag entsteht `system/` mit Paketliste, Platten samt UUIDs, Containern und aktivierten Diensten: der Bauplan
+  für den Neuaufbau, falls die Systemplatte ausfällt.
 
 #### License
 
