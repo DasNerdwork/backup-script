@@ -44,6 +44,7 @@ DOCKER_VOLUMES=(okapeo-prototyp_s3-data okapeo-prototyp_postgres-data okapeo-pro
 INCLUDES=("/hdd1/okapeo/**/.git/")
 EXCLUDES=(
     "/hdd1/clashapp/data/patch/"
+    "/hdd1/nextcloud/data/appdata_*/preview/"
     "/hdd1/food-tinder/.dartServer/"
     "/hdd1/food-tinder/android-sdk/"
     "/hdd1/food-tinder/bin/"
@@ -95,7 +96,7 @@ melden() {
     local HA_WEBHOOK=""
     [ -f "$SKRIPT_DIR/.env" ] && HA_WEBHOOK=$(sed -n 's/^HA_WEBHOOK=//p' "$SKRIPT_DIR/.env")
     if [ -n "$HA_WEBHOOK" ]; then
-        jq -n --arg t "$titel" --arg m "$text" '{title: $t, message: $m}' \
+        jq -n --arg t "💾 $titel" --arg m "$text" '{title: $t, message: $m}' \
             | curl -fsS -m 20 -X POST -H 'Content-Type: application/json' --data @- \
                 "http://127.0.0.1:8123/api/webhook/$HA_WEBHOOK" >/dev/null \
             || echo "[$(date +"%d.%m.%Y %H:%M:%S")] [backup.sh - WARNING]: Push an Home Assistant fehlgeschlagen" >> "$LOGFILE"

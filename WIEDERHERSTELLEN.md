@@ -21,7 +21,7 @@ Datenbank-Dumps unter `db/`: MariaDB, Postgres (Host), MongoDB, Docker-Postgres 
 
 **Nicht gesichert:** Caches und Build-Ergebnisse (`node_modules`, `.pnpm-store`, `.next`, `.turbo`, `.npm`,
 `.cache`, `__pycache__`, `vendor`), `.git` außerhalb von `/hdd1/okapeo`, `/root/.bun`, `.rustup`, `.nvm`,
-Spiele-Caches, `/var/log`, Docker-Images und alle übrigen Docker-Volumes (Testinstanzen, supabase), alles Weitere
+Nextcloud-Vorschaubilder, Spiele-Caches, `/var/log`, Docker-Images und alle übrigen Docker-Volumes (Testinstanzen, supabase), alles Weitere
 auf der Systemplatte (`/usr`, `/var/lib/...`). Liste: `EXCLUDES` in `backup.sh`.
 
 **Wie es funktioniert:** Jeder Tagesordner sieht aus wie eine Vollkopie. Der Pfad im Backup ist der Originalpfad
