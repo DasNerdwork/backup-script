@@ -41,7 +41,7 @@ DOCKER_VOLUMES=(okapeo-prototyp_s3-data okapeo-prototyp_postgres-data okapeo-pro
 
 # Git-Repos unter /hdd1/okapeo samt .git sichern (nicht gepushte Commits), sonst bleibt .git draußen.
 # Includes müssen vor den Excludes stehen.
-INCLUDES=("/hdd1/okapeo/**/.git/")
+INCLUDES=("/hdd1/okapeo/**/*.git/")   # auch Bare-Repos wie testinstanzen/repo.git
 EXCLUDES=(
     "/hdd1/clashapp/data/patch/"
     "/hdd1/nextcloud/data/appdata_*/preview/"
@@ -69,7 +69,7 @@ EXCLUDES=(
     "/**/.turbo/"
     "/**/__pycache__/"
     "/**/*.git/"
-    "/**/*vendor/"
+    "/**/vendor/"
     "/**/*.vscode/"
     "/**/*.cache/"
     "/**/*.vscode-server/"
@@ -178,8 +178,16 @@ PREV=$(find "$BACKUP_ROOT" -mindepth 2 -maxdepth 2 -name .vollstaendig -printf '
        | grep -v "^$TODAY_DIR$" | sort | tail -1)
 
 if [ "$DRY_RUN" -eq 0 ]; then
-    mkdir -p "$DB_DIR/mariadb" "$DB_DIR/postgres" "$DB_DIR/mongodb" "$DB_DIR/docker" \
+    mkdir -p "$DB_DIR/mariadb" "$DB_DIR/postgres" "$DB_DIR/mongodb" "$DB_DIR/docker" "$TODAY_DIR/system" \
         || { log_warn "Kann $TODAY_DIR nicht anlegen"; FERTIG=1; exit 1; }
+    chmod 700 "$DB_DIR"   # Dumps enthalten alle Datenbanken im Klartext, nur root darf lesen
+
+    # Bauplan des Systems für den Neuaufbau nach einem Ausfall der Systemplatte
+    apt-mark showmanual > "$TODAY_DIR/system/pakete.txt" 2>>"$LOGFILE"
+    lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT,UUID,MODEL > "$TODAY_DIR/system/platten.txt" 2>>"$LOGFILE"
+    { docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Label "com.docker.compose.project.working_dir"}}'
+      echo; docker volume ls; } > "$TODAY_DIR/system/docker.txt" 2>>"$LOGFILE"
+    systemctl list-unit-files --state=enabled --no-legend > "$TODAY_DIR/system/dienste.txt" 2>>"$LOGFILE"
 fi
 
 # Dump-Helfer: prüft Exitcode der ganzen Pipe, gzip-Integrität und Mindestgröße
@@ -236,7 +244,9 @@ if [ "$DO_RSYNC" -eq 1 ]; then
         log "[DRY-RUN] rsync ${QUELLEN[*]} -> $TODAY_DIR (Basis: ${PREV:-keine, Vollkopie})"
     else
         log "rsync startet (Basis: ${PREV:-keine, Vollkopie})"
-        rsync -aHR --delete --delete-excluded --numeric-ids --stats "${LINK[@]}" "${FILTER[@]}" "${QUELLEN[@]}" "$TODAY_DIR/" \
+        RSYNC_START=$(date +%s)
+        # -A: Zugriffslisten (ACLs) mitsichern, /hdd1/okapeo und /home hängen daran
+        rsync -aHAR --delete --delete-excluded --numeric-ids --stats "${LINK[@]}" "${FILTER[@]}" "${QUELLEN[@]}" "$TODAY_DIR/" \
             > "$TODAY_DIR/.rsync-stats" 2> "$TODAY_DIR/.rsync-fehler"
         RC=$?
         grep -E "^(Number of (files|regular files transferred)|Total (file size|transferred file size)):" \
@@ -253,6 +263,8 @@ if [ "$DO_RSYNC" -eq 1 ]; then
         for f in /etc/fstab /etc/nginx/nginx.conf /etc/nginx/sites-available/035-meet /opt/meet/compose.yml \
                  /hdd1/okapeo/okapeo-app/.git/HEAD /hdd1/okapeo/okapeo-genesis/.git/HEAD "$SKRIPT_DIR/backup.sh"; do
             [ -e "$f" ] || continue
+            # während des Laufs geändert (z. B. Branchwechsel): Abweichung ist dann kein Fehler
+            if [ "$(stat -c %Y "$f")" -ge "$RSYNC_START" ]; then log "Gegenprobe: $f während des Laufs geändert, übersprungen"; continue; fi
             cmp -s "$f" "$TODAY_DIR$f" || { log_warn "Gegenprobe: $f fehlt oder weicht ab"; PROBE_OK=0; }
         done
         if [ -n "$(find "$TODAY_DIR/hdd1/okapeo" -maxdepth 3 -name node_modules -print -quit 2>/dev/null)" ]; then
