@@ -34,7 +34,7 @@ LOCK="/run/backup.lock"
 # Quellen, im Backup unter demselben Pfad (rsync -R)
 SRC=(/home /etc /opt /var/www /root /hdd1 /usr/local/bin /var/spool/cron /var/vmail)
 # Laufende Postgres-Container: werden gedumpt (Rohdateien einer laufenden DB sind nicht verlässlich)
-DOCKER_PG=(okapeo-prototyp-postgres-1 strapi-db)
+DOCKER_PG=(okapeo-prototyp-postgres-1 strapi-db matrix-postgres)
 # Docker-Volumes, die 1:1 kopiert werden (keine laufende DB darin)
 DOCKER_VOLUMES=(okapeo-prototyp_s3-data okapeo-prototyp_postgres-data okapeo-prototyp_minio-data
                 n8n_data matter-data backend_postgres_data)
